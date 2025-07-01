@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import QuestionViewer from "./QuestionViewer";
 import Select from "react-select";
-
+const API_BASE = import.meta.env.PROD
+  ? "https://questions-generator-1.onrender.com/api"
+  : "/api";
 // Spinner for loading animation
 const Spinner = () => (
   <div className="flex justify-center items-center py-8">
@@ -81,7 +83,7 @@ const QuestionGenerator = () => {
   // Fetch classes on mount
   useEffect(() => {
     axios
-      .get("/api/classes")
+      .get(`${API_BASE}/classes`)
       .then((res) => setClasses(res.data))
       .catch(() => setClasses([]));
   }, []);
@@ -90,7 +92,7 @@ const QuestionGenerator = () => {
   useEffect(() => {
     if (!selectedClass) return;
     axios
-      .get(`/api/subjects/${selectedClass}`)
+      .get(`${API_BASE}/subjects/${selectedClass}`)
       .then((res) => setSubjects(res.data))
       .catch(() => setSubjects([]));
     setSelectedSubject("");
@@ -102,7 +104,8 @@ const QuestionGenerator = () => {
   useEffect(() => {
     if (!selectedClass || !selectedSubject) return;
     axios
-      .get(`/api/topics/${selectedClass}/${selectedSubject}`)
+      .get(`${API_BASE}/topics/${selectedClass}/${selectedSubject}`)
+
       .then((res) => setTopics(res.data))
       .catch(() => setTopics([]));
     setSelectedTopics([]);
@@ -131,7 +134,7 @@ const QuestionGenerator = () => {
     setAIQuestions([]);
     setDescQuestions([]);
     try {
-      const res = await axios.post("/api/generate-questions", {
+      const res = await axios.post(`${API_BASE}/generate-questions`, {
         classId: selectedClass,
         subject: selectedSubject,
         selectedTopics,
