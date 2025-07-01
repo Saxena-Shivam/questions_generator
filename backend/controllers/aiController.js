@@ -1,15 +1,21 @@
 const { Groq } = require("groq-sdk");
+const { MongoClient } = require("mongodb");
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+// Use the same collectionTextbooks logic as above or import it if modularized
+
 exports.generateAIQuestion = async (req, res) => {
   try {
     const { classId, subject, topic, questionType, count = 1 } = req.body;
 
-    // Get textbook content
-    const textbook = await Textbook.findOne({
+    // Get textbook content (use native driver)
+    const client = await MongoClient.connect(process.env.MONGO_URI);
+    const dbTextbooks = client.db("Textbooks");
+    const collectionTextbooks = dbTextbooks.collection("content");
+    const textbook = await collectionTextbooks.findOne({
       class: parseInt(classId),
       subject_name: subject,
       topic: topic,

@@ -1,271 +1,296 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-
+import QuestionViewer from "./QuestionViewer";
+import Select from "react-select";
 const QuestionGenerator = () => {
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
   const [subjects, setSubjects] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState("");
   const [topics, setTopics] = useState([]);
-  const [selectedTopic, setSelectedTopic] = useState("");
-  const [marks, setMarks] = useState("");
-  const [difficulty, setDifficulty] = useState("");
-  const [questions, setQuestions] = useState([]);
-  const [textbookContent, setTextbookContent] = useState("");
+  const [selectedTopics, setSelectedTopics] = useState([]);
+  const [numMCQ, setNumMCQ] = useState(0);
+  const [numFill, setNumFill] = useState(0);
+  const [numTF, setNumTF] = useState(0);
+  const [descSets, setDescSets] = useState([]); // [{count, marks}]
+  const [descCount, setDescCount] = useState(0);
+  const [descMarks, setDescMarks] = useState("1");
   const [loading, setLoading] = useState(false);
+  const [aiQuestions, setAIQuestions] = useState([]);
+  const [descQuestions, setDescQuestions] = useState([]);
+  const [error, setError] = useState("");
 
   // Fetch classes on mount
-
   useEffect(() => {
-    const fetchClasses = async () => {
-      try {
-        const response = await axios.get("/api/classes");
-        console.log("Classes fetched:", response.data); // DEBUG
-        setClasses(Array.isArray(response.data) ? response.data : []);
-      } catch (err) {
-        setClasses([]);
-        console.error("Error fetching classes:", err);
-        alert("Failed to fetch classes. Please try again later.");
-      }
-    };
-    fetchClasses();
+    axios
+      .get("/api/classes")
+      .then((res) => setClasses(res.data))
+      .catch(() => setClasses([]));
   }, []);
 
   // Fetch subjects when class is selected
   useEffect(() => {
     if (!selectedClass) return;
-
-    const fetchSubjects = async () => {
-      try {
-        const response = await axios.get(`/api/subjects/${selectedClass}`);
-        console.log("Subjects fetched:", response.data); // DEBUG
-        setSubjects(response.data);
-        setSelectedSubject("");
-        setTopics([]);
-        setSelectedTopic("");
-      } catch (err) {
-        console.error("Error fetching subjects:", err);
-      }
-    };
-
-    fetchSubjects();
+    axios
+      .get(`/api/subjects/${selectedClass}`)
+      .then((res) => setSubjects(res.data))
+      .catch(() => setSubjects([]));
+    setSelectedSubject("");
+    setTopics([]);
+    setSelectedTopics([]);
   }, [selectedClass]);
 
   // Fetch topics when subject is selected
   useEffect(() => {
     if (!selectedClass || !selectedSubject) return;
-
-    const fetchTopics = async () => {
-      try {
-        const response = await axios.get(
-          `/api/topics/${selectedClass}/${selectedSubject}`
-        );
-        console.log("Topics fetched:", response.data); // DEBUG
-        setTopics(response.data);
-        setSelectedTopic("");
-      } catch (err) {
-        console.error("Error fetching topics:", err);
-      }
-    };
-
-    fetchTopics();
+    axios
+      .get(`/api/topics/${selectedClass}/${selectedSubject}`)
+      .then((res) => setTopics(res.data))
+      .catch(() => setTopics([]));
+    setSelectedTopics([]);
   }, [selectedClass, selectedSubject]);
 
-  // Fetch textbook content when topic is selected
-  useEffect(() => {
-    if (!selectedClass || !selectedSubject || !selectedTopic) return;
-
-    const fetchTextbookContent = async () => {
-      try {
-        const response = await axios.get(
-          `/api/textbook/${selectedClass}/${selectedSubject}/${selectedTopic}`
-        );
-        console.log("Textbook content fetched:", response.data); // DEBUG
-        setTextbookContent(response.data.content);
-      } catch (err) {
-        console.error("Error fetching textbook content:", err);
-      }
-    };
-
-    fetchTextbookContent();
-  }, [selectedClass, selectedSubject, selectedTopic]);
-
-  const fetchQuestions = async () => {
-    if (!selectedClass || !selectedSubject) {
-      alert("Please select class and subject");
-      return;
+  // Add descriptive set
+  const addDescSet = () => {
+    if (descCount > 0) {
+      setDescSets((prev) => [...prev, { count: descCount, marks: descMarks }]);
+      setDescCount(0);
     }
+  };
 
+  // Remove descriptive set
+  const removeDescSet = (idx) => {
+    setDescSets((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // Generate all questions
+  const handleGenerate = async () => {
     setLoading(true);
+    setError("");
+    setAIQuestions([]);
+    setDescQuestions([]);
     try {
-      const params = {
+      const res = await axios.post("/api/generate-questions", {
         classId: selectedClass,
         subject: selectedSubject,
-      };
-
-      if (selectedTopic) params.topic = selectedTopic;
-      if (marks) params.marks = marks;
-      if (difficulty) params.difficulty = difficulty;
-
-      const response = await axios.get("/api/questions", { params });
-      console.log("Questions fetched:", response.data); // DEBUG
-      setQuestions(response.data);
+        selectedTopics,
+        num_mcq: numMCQ,
+        num_fill_blank: numFill,
+        num_true_false: numTF,
+        descriptive_sets: descSets,
+      });
+      setAIQuestions(res.data.aiQuestions || []);
+      setDescQuestions(res.data.descriptiveQuestions || []);
     } catch (err) {
-      console.error("Error fetching questions:", err);
-      alert("Failed to fetch questions");
-    } finally {
-      setLoading(false);
+      setError("Failed to generate questions. Please try again.");
+      console.log(err);
     }
+    setLoading(false);
   };
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">Question Bank</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Filters Section */}
-        <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-xl font-semibold mb-4">Filters</h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block mb-1">Class</label>
-              <select
-                className="w-full p-2 border rounded"
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-              >
-                <option value="">Select Class</option>
-                {classes.map((cls) => (
-                  <option key={cls} value={cls}>
-                    {cls}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-1">Subject</label>
-              <select
-                className="w-full p-2 border rounded"
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
-                disabled={!selectedClass}
-              >
-                <option value="">Select Subject</option>
-                {subjects.map((subject) => (
-                  <option key={subject} value={subject}>
-                    {subject}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-1">Topic (Optional)</label>
-              <select
-                className="w-full p-2 border rounded"
-                value={selectedTopic}
-                onChange={(e) => setSelectedTopic(e.target.value)}
-                disabled={!selectedSubject}
-              >
-                <option value="">All Topics</option>
-                {topics.map((topic) => (
-                  <option key={topic} value={topic}>
-                    {topic}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block mb-1">Marks (Optional)</label>
-                <select
-                  className="w-full p-2 border rounded"
-                  value={marks}
-                  onChange={(e) => setMarks(e.target.value)}
-                >
-                  <option value="">All Marks</option>
-                  <option value="1">1 Mark</option>
-                  <option value="2">2 Marks</option>
-                  <option value="5">5 Marks</option>
-                  <option value="10">10 Marks</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block mb-1">Difficulty (Optional)</label>
-                <select
-                  className="w-full p-2 border rounded"
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value)}
-                >
-                  <option value="">All Levels</option>
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
-                </select>
-              </div>
-            </div>
-
-            <button
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              onClick={fetchQuestions}
-              disabled={loading}
+      <h1 className="text-2xl font-bold mb-6">Question Paper Generator</h1>
+      <div className="bg-white p-4 rounded shadow space-y-4">
+        {/* Step 1: Class, Subject, Topics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block mb-1">Class</label>
+            <select
+              className="w-full p-2 border rounded"
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
             >
-              {loading ? "Loading..." : "Get Questions"}
-            </button>
+              <option value="">Select Class</option>
+              {classes.map((cls) => (
+                <option key={cls} value={cls}>
+                  {cls}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block mb-1">Subject</label>
+            <select
+              className="w-full p-2 border rounded"
+              value={selectedSubject}
+              onChange={(e) => setSelectedSubject(e.target.value)}
+              disabled={!selectedClass}
+            >
+              <option value="">Select Subject</option>
+              {subjects.map((sub) => (
+                <option key={sub} value={sub}>
+                  {sub}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block mb-1">Chapters (Select one or more)</label>
+            <Select
+              isMulti
+              options={topics.map((topic) => ({ value: topic, label: topic }))}
+              value={topics
+                .filter((topic) => selectedTopics.includes(topic))
+                .map((topic) => ({ value: topic, label: topic }))}
+              onChange={(opts) =>
+                setSelectedTopics(opts.map((opt) => opt.value))
+              }
+              isDisabled={!selectedSubject}
+            />
           </div>
         </div>
 
-        {/* Textbook Content Section */}
-        <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-xl font-semibold mb-4">Textbook Content</h2>
-          <div className="h-64 overflow-y-auto p-2 bg-gray-50 rounded">
-            {textbookContent || "Select a topic to view textbook content"}
+        {/* Step 2: AI Question Inputs */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div>
+            <label className="block mb-1">MCQ</label>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-2 py-1 bg-gray-200 rounded"
+                onClick={() => setNumMCQ((n) => Math.max(0, n - 1))}
+              >
+                -
+              </button>
+              <input
+                type="number"
+                className="w-16 p-2 border rounded text-center"
+                value={numMCQ}
+                min={1}
+                onChange={(e) => setNumMCQ(Number(e.target.value))}
+              />
+              <button
+                className="px-2 py-1 bg-gray-200 rounded"
+                onClick={() => setNumMCQ((n) => n + 1)}
+              >
+                +
+              </button>
+            </div>
           </div>
+          <div>
+            <label className="block mb-1">Fill in the Blanks</label>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-2 py-1 bg-gray-200 rounded"
+                onClick={() => setNumFill((n) => Math.max(0, n - 1))}
+              >
+                -
+              </button>
+              <input
+                type="number"
+                className="w-16 p-2 border rounded text-center"
+                value={numFill}
+                min={1}
+                onChange={(e) => setNumFill(Number(e.target.value))}
+              />
+              <button
+                className="px-2 py-1 bg-gray-200 rounded"
+                onClick={() => setNumFill((n) => n + 1)}
+              >
+                +
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block mb-1">True/False</label>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-2 py-1 bg-gray-200 rounded"
+                onClick={() => setNumTF((n) => Math.max(0, n - 1))}
+              >
+                -
+              </button>
+              <input
+                type="number"
+                className="w-16 p-2 border rounded text-center"
+                value={numTF}
+                min={1}
+                onChange={(e) => setNumTF(Number(e.target.value))}
+              />
+              <button
+                className="px-2 py-1 bg-gray-200 rounded"
+                onClick={() => setNumTF((n) => n + 1)}
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Step 3: Descriptive Sets */}
+        <div>
+          <label className="block mb-1">Descriptive Questions</label>
+          <div className="flex gap-2 items-center">
+            <input
+              type="number"
+              className="p-2 border rounded w-20"
+              placeholder="Count"
+              value={descCount}
+              min={0}
+              onChange={(e) => setDescCount(Number(e.target.value))}
+            />
+            <select
+              className="p-2 border rounded"
+              value={descMarks}
+              onChange={(e) => setDescMarks(e.target.value)}
+            >
+              <option value="1">1 Mark</option>
+              <option value="2">2 Marks</option>
+              <option value="4">4 Marks</option>
+              <option value="5">5 Marks</option>
+              <option value="10">10 Marks</option>
+            </select>
+            <button
+              className="bg-green-600 text-white px-3 py-1 rounded"
+              onClick={addDescSet}
+            >
+              +
+            </button>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {descSets.map((d, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center bg-gray-200 px-2 py-1 rounded"
+              >
+                {d.count} x {d.marks} marks
+                <button
+                  className="ml-2 text-red-500"
+                  onClick={() => removeDescSet(i)}
+                  title="Remove"
+                >
+                  &times;
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Step 4: Generate Button */}
+        <div>
+          <button
+            className="mt-4 bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700"
+            onClick={handleGenerate}
+            disabled={
+              loading ||
+              !selectedClass ||
+              !selectedSubject ||
+              selectedTopics.length === 0 ||
+              (numMCQ === 0 &&
+                numFill === 0 &&
+                numTF === 0 &&
+                descSets.length === 0)
+            }
+          >
+            {loading ? "Generating..." : "Generate Question Paper"}
+          </button>
+          {error && <div className="text-red-600 mt-2">{error}</div>}
         </div>
       </div>
 
-      {/* Questions Section */}
-      <div className="mt-6 bg-white p-4 rounded shadow">
-        <h2 className="text-xl font-semibold mb-4">
-          Questions ({questions.length})
-        </h2>
-
-        {loading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-          </div>
-        ) : questions.length > 0 ? (
-          <div className="space-y-4">
-            {questions.map((q, index) => (
-              <div key={index} className="border-b pb-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-medium">{q.question}</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {q.topic} • {q.marks} mark{q.marks > 1 ? "s" : ""} •{" "}
-                      {q.difficulty}
-                    </p>
-                  </div>
-                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                    Class {q.class}
-                  </span>
-                </div>
-                <div className="mt-2 p-2 bg-gray-50 rounded">
-                  <p className="text-sm font-medium">Answer:</p>
-                  <p className="text-sm">{q.answer}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-center py-8 text-gray-500">
-            No questions found. Try adjusting your filters.
-          </p>
-        )}
+      {/* Results */}
+      <div className="mt-8">
+        <QuestionViewer questions={descQuestions} aiQuestions={aiQuestions} />
       </div>
     </div>
   );
