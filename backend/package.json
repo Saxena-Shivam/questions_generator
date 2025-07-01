@@ -1,0 +1,22 @@
+{
+  "name": "arc",
+  "version": "1.0.0",
+  "description": "this is application for question paper generation",
+  "license": "ISC",
+  "author": "shivam saxena",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon -r dotenv/config --experimental-json-modules index.js"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.0.0",
+    "express": "^5.1.0",
+    "groq-sdk": "^0.26.0",
+    "mongoose": "^8.16.1"
+  }
+}
