@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      "/api": "http://localhost:5000", // or whatever your backend port is
+      "/api": "https://questions-generator-1.onrender.com", // or whatever your backend port is
     },
   },
 });

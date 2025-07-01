@@ -375,7 +375,7 @@ const QuestionGenerator = () => {
                 <option value="hard">Hard</option>
               </select>
               <button
-                className="bg-yellow-600 text-white px-3 py-1 rounded hover:bg-yellow-700"
+                className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
                 onClick={addDescSet}
               >
                 Add +
