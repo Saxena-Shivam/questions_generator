@@ -5,11 +5,16 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// Use the same collectionTextbooks logic as above or import it if modularized
-
 exports.generateAIQuestion = async (req, res) => {
   try {
-    const { classId, subject, topic, questionType, count = 1 } = req.body;
+    const {
+      classId,
+      subject,
+      topic,
+      questionType,
+      count = 1,
+      difficulty = "",
+    } = req.body;
 
     // Get textbook content (use native driver)
     const client = await MongoClient.connect(process.env.MONGO_URI);
@@ -28,7 +33,12 @@ exports.generateAIQuestion = async (req, res) => {
     }
 
     const context = textbook.textbook.substring(0, 3000);
-    const prompt = getPromptForQuestionType(questionType, count, context);
+    const prompt = getPromptForQuestionType(
+      questionType,
+      count,
+      context,
+      difficulty
+    );
 
     const response = await groq.chat.completions.create({
       model: "llama3-8b-8192",
@@ -50,18 +60,23 @@ exports.generateAIQuestion = async (req, res) => {
       throw new Error("AI returned empty response");
     }
 
-    res.json({ questions: content });
+    // Return difficulty in the response for frontend display
+    res.json({ questions: content, difficulty });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-function getPromptForQuestionType(type, count, context) {
+function getPromptForQuestionType(type, count, context, difficulty = "") {
+  let diffText = "";
+  if (difficulty) {
+    diffText = ` The questions should be of "${difficulty}" difficulty level.`;
+  }
   const prompts = {
     mcq: `Based on this content:
 ${context}
 
-Generate ${count} multiple choice questions. For each question:
+Generate ${count} multiple choice questions.${diffText} For each question:
 - Write the question
 - Provide exactly 4 options labeled A), B), C), and D)
 - Make sure one option is correct
@@ -76,7 +91,7 @@ D) [Fourth option]`,
     descriptive: `Based on this content:
 ${context}
 
-Generate ${count} descriptive questions that require detailed answers. For each question:
+Generate ${count} descriptive questions that require detailed answers.${diffText} For each question:
 - Focus on analysis and critical thinking
 - Require explanation and reasoning
 
@@ -88,7 +103,7 @@ Example:
     fill_blank: `Based on this content:
 ${context}
 
-Generate ${count} fill-in-the-blank questions. For each:
+Generate ${count} fill-in-the-blank questions.${diffText} For each:
 - Create a sentence with a key term missing
 - Put _____ for the blank
 - Show the answer in brackets
@@ -100,7 +115,7 @@ Format each exactly like this:
     true_false: `Based on this content:
 ${context}
 
-Generate ${count} True/False questions. For each:
+Generate ${count} True/False questions.${diffText} For each:
 - Start each question with "True or False:"
 - Write a clear, unambiguous question
 - Make it directly related to the content

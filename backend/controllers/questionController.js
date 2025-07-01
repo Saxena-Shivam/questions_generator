@@ -123,12 +123,16 @@ function getQuestionDistribution(topics, totalQuestions) {
   return distribution;
 }
 
-async function generateAIQuestions(context, type, num) {
+async function generateAIQuestions(context, type, num, difficulty = "") {
+  let diffText = "";
+  if (difficulty && difficulty !== "ai") {
+    diffText = ` The questions should be of "${difficulty}" difficulty level.`;
+  }
   const prompts = {
-    mcq: `Based on this content:\n${context}\n\nGenerate ${num} multiple choice questions. For each question:\n- Write the question\n- Provide exactly 4 options labeled A), B), C), and D)\n- Make sure one option is correct\n\nFormat each question exactly like this:\nQuestion: [Question text]\nA) [First option]\nB) [Second option]\nC) [Third option]\nD) [Fourth option]`,
-    descriptive: `Based on this content:\n${context}\n\nGenerate ${num} descriptive questions that require detailed answers. For each question:\n- Focus on analysis and critical thinking\n- Require explanation and reasoning\n\nFormat: Clear, numbered questions that prompt for detailed explanations.`,
-    fill_blank: `Based on this content:\n${context}\n\nGenerate ${num} fill-in-the-blank questions. For each:\n- Create a sentence with a key term missing\n- Put _____ for the blank\n- Show the answer in brackets\n\nFormat each exactly like this:\n1. The process of _____ helps in maintaining system integrity. [normalization]`,
-    true_false: `Based on this content:\n${context}\n\nGenerate ${num} True/False questions. For each:\n- Start each question with "True or False:"\n- Write a clear, unambiguous question\n- Make it directly related to the content\n\nFormat each exactly like this:\n1. True or False: [Statement]`,
+    mcq: `Based on this content:\n${context}\n\nGenerate ${num} multiple choice questions.${diffText} For each question:\n- Write the question\n- Provide exactly 4 options labeled A), B), C), and D)\n- Make sure one option is correct\n\nFormat each question exactly like this:\nQuestion: [Question text]\nA) [First option]\nB) [Second option]\nC) [Third option]\nD) [Fourth option]`,
+    descriptive: `Based on this content:\n${context}\n\nGenerate ${num} descriptive questions.${diffText} For each question:\n- Focus on analysis and critical thinking\n- Require explanation and reasoning\n\nFormat: Clear, numbered questions that prompt for detailed explanations.`,
+    fill_blank: `Based on this content:\n${context}\n\nGenerate ${num} fill-in-the-blank questions.${diffText} For each:\n- Create a sentence with a key term missing\n- Put _____ for the blank\n- Show the answer in brackets\n\nFormat each exactly like this:\n1. The process of _____ helps in maintaining system integrity. [normalization]`,
+    true_false: `Based on this content:\n${context}\n\nGenerate ${num} True/False questions.${diffText} For each:\n- Start each question with "True or False:"\n- Write a clear, unambiguous question\n- Make it directly related to the content\n\nFormat each exactly like this:\n1. True or False: [Statement]`,
   };
   const prompt = prompts[type] || prompts.mcq;
   const response = await groq.chat.completions.create({
@@ -158,6 +162,10 @@ exports.generateQuestions = async (req, res) => {
       num_fill_blank = 0,
       num_true_false = 0,
       descriptive_sets = [],
+      mcqDifficulty = "",
+      fillDifficulty = "",
+      tfDifficulty = "",
+      onlyAIDescriptive = false,
     } = req.body;
 
     const db = mongoose.connection.db;
@@ -179,85 +187,117 @@ exports.generateQuestions = async (req, res) => {
       const context = contentDoc?.textbook?.slice(0, 3000) || "";
 
       if (mcqDist[topic] > 0 && context) {
-        const mcq = await generateAIQuestions(context, "mcq", mcqDist[topic]);
-        aiQuestions.push({ type: "mcq", topic, questions: mcq });
+        const mcq = await generateAIQuestions(
+          context,
+          "mcq",
+          mcqDist[topic],
+          mcqDifficulty
+        );
+        aiQuestions.push({
+          type: "mcq",
+          topic,
+          questions: mcq,
+          difficulty: mcqDifficulty,
+        });
       }
       if (fillDist[topic] > 0 && context) {
         const fill = await generateAIQuestions(
           context,
           "fill_blank",
-          fillDist[topic]
+          fillDist[topic],
+          fillDifficulty
         );
-        aiQuestions.push({ type: "fill_blank", topic, questions: fill });
+        aiQuestions.push({
+          type: "fill_blank",
+          topic,
+          questions: fill,
+          difficulty: fillDifficulty,
+        });
       }
       if (tfDist[topic] > 0 && context) {
         const tf = await generateAIQuestions(
           context,
           "true_false",
-          tfDist[topic]
+          tfDist[topic],
+          tfDifficulty
         );
-        aiQuestions.push({ type: "true_false", topic, questions: tf });
+        aiQuestions.push({
+          type: "true_false",
+          topic,
+          questions: tf,
+          difficulty: tfDifficulty,
+        });
       }
     }
 
     // Descriptive questions (from DB, fallback to AI if not enough)
     for (const descSet of descriptive_sets) {
-      const { count, marks } = descSet;
+      const { count, marks, difficulty } = descSet;
       const descDist = getQuestionDistribution(selectedTopics, count);
 
-      // Fetch questions from DB
-      const doc = await db.collection("subjects").findOne({
-        class: parseInt(classId),
-        subject_name: subject,
-      });
-      const topicDict = {};
-      if (doc && doc.topics) {
-        for (const t of doc.topics) {
-          topicDict[t.topic_name] = t.questions;
+      let topicDict = {};
+      if (!onlyAIDescriptive) {
+        // Fetch questions from DB only if not AI-only
+        const doc = await db.collection("subjects").findOne({
+          class: parseInt(classId),
+          subject_name: subject,
+        });
+        if (doc && doc.topics) {
+          for (const t of doc.topics) {
+            topicDict[t.topic_name] = t.questions;
+          }
         }
       }
 
-      let aiCounter = 1;
       for (const topic of selectedTopics) {
-        const questionsWithMark = (topicDict[topic] || []).filter(
-          (q) => q.marks === parseInt(marks)
-        );
         let selected = [];
-        if (questionsWithMark.length >= descDist[topic]) {
-          // Randomly select from DB
-          selected = questionsWithMark
-            .sort(() => Math.random() - 0.5)
-            .slice(0, descDist[topic])
-            .map((q) => ({
+        let numAI = descDist[topic];
+
+        if (!onlyAIDescriptive && topicDict[topic]) {
+          const questionsWithMark = (topicDict[topic] || []).filter(
+            (q) =>
+              q.marks === parseInt(marks) &&
+              (!difficulty || q.difficulty === difficulty)
+          );
+          if (questionsWithMark.length >= descDist[topic]) {
+            selected = questionsWithMark
+              .sort(() => Math.random() - 0.5)
+              .slice(0, descDist[topic])
+              .map((q) => ({
+                question: q.question,
+                source: "db",
+                topic,
+                marks: q.marks,
+                difficulty: q.difficulty,
+              }));
+            numAI = 0;
+          } else {
+            selected = questionsWithMark.map((q) => ({
               question: q.question,
               source: "db",
               topic,
               marks: q.marks,
               difficulty: q.difficulty,
             }));
-        } else {
-          // Use all from DB, fill rest with AI
-          selected = questionsWithMark.map((q) => ({
-            question: q.question,
-            source: "db",
-            topic,
-            marks: q.marks,
-            difficulty: q.difficulty,
-          }));
-          const numAI = descDist[topic] - questionsWithMark.length;
+            numAI = descDist[topic] - questionsWithMark.length;
+          }
+        }
+
+        // Always generate AI questions if needed
+        if (numAI > 0) {
           const contentDoc = await collectionTextbooks.findOne({
             class: parseInt(classId),
             subject_name: subject,
             topic: topic,
           });
           const context = contentDoc?.textbook?.slice(0, 3000) || "";
-          if (numAI > 0 && context) {
+          if (context) {
             const aiDesc = await generateAIQuestions(
               context,
               "descriptive",
-              numAI
+              numAI,
+              difficulty
             );
-            // Split AI questions by lines or numbers
             const aiQs = aiDesc
               .split(/\n\d+\.\s/)
               .filter((s) => s.trim())
@@ -266,7 +306,7 @@ exports.generateQuestions = async (req, res) => {
                 source: "ai",
                 topic,
                 marks: parseInt(marks),
-                difficulty: "ai",
+                difficulty: difficulty || "ai",
               }));
             selected = selected.concat(aiQs.slice(0, numAI));
           }
