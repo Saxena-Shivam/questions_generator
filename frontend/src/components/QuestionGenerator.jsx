@@ -347,17 +347,17 @@ const QuestionGenerator = () => {
             <label className="block mb-1 font-semibold text-yellow-700">
               Descriptive Questions
             </label>
-            <div className="flex gap-2 items-center mb-2">
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center mb-2">
               <input
                 type="number"
-                className="p-2 border rounded w-20"
+                className="p-2 border rounded w-full sm:w-24"
                 placeholder="Count"
                 value={descCount}
                 min={0}
                 onChange={(e) => setDescCount(Number(e.target.value))}
               />
               <select
-                className="p-2 border rounded"
+                className="p-2 border rounded w-full sm:w-32"
                 value={descMarks}
                 onChange={(e) => setDescMarks(e.target.value)}
               >
@@ -368,7 +368,7 @@ const QuestionGenerator = () => {
                 <option value="10">10 Marks</option>
               </select>
               <select
-                className="p-2 border rounded"
+                className="p-2 border rounded w-full sm:w-36"
                 value={descDifficulty}
                 onChange={(e) => setDescDifficulty(e.target.value)}
               >
@@ -378,7 +378,7 @@ const QuestionGenerator = () => {
                 <option value="hard">Hard</option>
               </select>
               <button
-                className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 w-full sm:w-auto"
                 onClick={addDescSet}
               >
                 Add +
