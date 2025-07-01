@@ -161,7 +161,7 @@ const QuestionGenerator = () => {
       <h1 className="text-3xl font-extrabold mb-8 text-center text-purple-700 drop-shadow">
         Question Paper Generator
       </h1>
-      <div className="max-w-5xl mx-auto bg-white/90 p-6 rounded-2xl shadow-2xl space-y-8">
+      <div className="w-full min-h-[80vh] bg-white/90 p-10 rounded-2xl shadow-2xl flex flex-col justify-center space-y-8">
         <FadeInSection show={showStep1} delay={0}>
           {/* Step 1: Class, Subject, Topics */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -241,7 +241,7 @@ const QuestionGenerator = () => {
                 </button>
                 <input
                   type="number"
-                  className="w-16 p-2 border rounded text-center"
+                  className="w-full p-2 border rounded text-center"
                   value={numMCQ}
                   min={0}
                   onChange={(e) => setNumMCQ(Number(e.target.value))}
@@ -278,7 +278,7 @@ const QuestionGenerator = () => {
                 </button>
                 <input
                   type="number"
-                  className="w-16 p-2 border rounded text-center"
+                  className="w-full p-2 border rounded text-center"
                   value={numFill}
                   min={0}
                   onChange={(e) => setNumFill(Number(e.target.value))}
@@ -315,7 +315,7 @@ const QuestionGenerator = () => {
                 </button>
                 <input
                   type="number"
-                  className="w-16 p-2 border rounded text-center"
+                  className="w-full p-2 border rounded text-center"
                   value={numTF}
                   min={0}
                   onChange={(e) => setNumTF(Number(e.target.value))}
